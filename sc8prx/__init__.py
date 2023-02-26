@@ -19,9 +19,6 @@
 
 import PIL.Image
 
-def _frombytes(d, s, m):
-    return PIL.Image.frombytes(m, s, d)
-
 def pil(pix):
     "Convert PixelData to PIL.Image"
-    return pix._image(_frombytes)
+    return PIL.Image.frombytes(pix.mode, pix.size, pix._data)

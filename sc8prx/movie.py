@@ -43,7 +43,7 @@ class Movie(Video):
 
     @property
     def costumeNumber(self): return self._costumeNumber
- 
+
     @costumeNumber.setter
     def costumeNumber(self, n):
         self._costumeNumber += 1

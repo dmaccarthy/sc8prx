@@ -58,11 +58,10 @@ class Reader(_FF):
             while True: yield next(self)
         except StopIteration: pass
 
-    def _read(self, n=None, compress=False):
+    def _read(self, n=None):
         try:
             while n is None or n > 0:
                 pix = next(self)
-                if compress: pix.compress()
                 if n is not None: n -= 1
                 yield pix
         except StopIteration: pass
@@ -117,8 +116,8 @@ class Reader(_FF):
 class Writer(_FF):
     "Write graphics directly to media file using imageio/FFmpeg"
 
-    def __init__(self, fn, fps=30, **kwargs):
-        self._size = None
+    def __init__(self, fn, fps=30, size=None, **kwargs):
+        self._size = size
         self._io = imageio.get_writer(fn, fps=fps, **kwargs)
 
     def write(self, srf):
@@ -141,6 +140,27 @@ class Writer(_FF):
     def writePIL(self, pil):
         "Write a PIL image: DOES NOT VERIFY SIZE"
         self._io.append_data(numpy.array(pil))
+        return self
+
+    @staticmethod
+    def _srf_rgb(pix):
+        return pix.srf.convert(24) if pix.mode == "RGBA" else pix.srf
+
+    def concat_zip(self, src, start=0, frames=None):
+        "Concatenate ZIP archive frames to the movie"
+        with VidZip(src) as src:
+            clip = src[start:start+frames] if frames else src[start:]
+            for f in clip: self.write(self._srf_rgb(f))
+        return self
+
+    def concat(self, src, start=0, frames=None):
+        "Concatenate frames from a movie file"
+        with Reader(src).skip(start) as src:
+            try:
+                while frames is None or frames:
+                    self.write(self._srf_rgb(next(src)))
+                    if frames: frames -= 1
+            except StopIteration: pass
         return self
 
     capture = write
