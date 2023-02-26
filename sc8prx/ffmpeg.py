@@ -22,7 +22,7 @@ from json import dumps
 from zipfile import ZipFile, ZIP_DEFLATED
 from sc8pr import PixelData, Image
 from sc8pr.misc.video import VidZip
-from sc8prx import _pil
+from sc8prx import pil
 
 class _FF:
 
@@ -130,12 +130,12 @@ class Writer(_FF):
         if self._size is None: self._size = size
         if size != self._size:
             srf = Image(srf).config(size=self._size).image
-        self._io.append_data(numpy.array(_pil(PixelData(srf))))
+        self._io.append_data(numpy.array(pil(PixelData(srf))))
         return self
 
     def writePixelData(self, pix):
         "Write a PixelData instance: DOES NOT VERIFY SIZE"
-        self._io.append_data(numpy.array(_pil(pix)))
+        self._io.append_data(numpy.array(pil(pix)))
         return self
 
     def writePIL(self, pil):

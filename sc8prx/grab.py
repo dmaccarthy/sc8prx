@@ -17,7 +17,7 @@
 
 "Additional features depending on Pillow"
 
-import pygame,PIL.ImageGrab
+import pygame, PIL.ImageGrab
 from sc8pr import PixelData
 
 

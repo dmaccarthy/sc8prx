@@ -22,6 +22,6 @@ import PIL.Image
 def _frombytes(d, s, m):
     return PIL.Image.frombytes(m, s, d)
 
-def _pil(pxd):
+def pil(pix):
     "Convert PixelData to PIL.Image"
-    return pxd._image(_frombytes)
+    return pix._image(_frombytes)
