@@ -18,7 +18,7 @@
 "Additional features depending on Pillow"
 
 import pygame, PIL.ImageGrab
-from sc8pr import PixelData
+from sc8pr import Image
 
 
 class Grabber:
@@ -41,7 +41,7 @@ class Grabber:
     def pil(self): return self.grab(self.bbox)
 
     @property
-    def pix(self): return PixelData(self.grab(self.bbox))
+    def img(self): return Image(self.grab(self.bbox))
 
     @property
-    def img(self): return self.pix.img
+    def rgba(self): return Image(self.grab(self.bbox)).rgba

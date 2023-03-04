@@ -9,16 +9,20 @@
 #
 # "sc8prx" is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with "sc8prx".  If not, see <http://www.gnu.org/licenses/>.
+# along with "sc8prx". If not, see <http://www.gnu.org/licenses/>.
 
-"Convert PixelData to Pillow image format"
+"Convert Image to Pillow image format"
 
+from sc8pr import Image
+from sc8pr.util import surface
 import PIL.Image
 
-def pil(pix):
-    "Convert PixelData to PIL.Image"
-    return PIL.Image.frombytes(pix.mode, pix.size, pix._data)
+def pil(img):
+    "Convert surface to PIL.Image"
+    srf = surface(img)
+    mode = "RGBA" if srf.get_bitsize() == 32 else "RGB"
+    return PIL.Image.frombytes(mode, srf.get_size(), Image(srf).bytesTuple(False))

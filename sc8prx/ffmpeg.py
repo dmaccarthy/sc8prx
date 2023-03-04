@@ -9,19 +9,19 @@
 #
 # "sc8prx" is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with "sc8prx".  If not, see <http://www.gnu.org/licenses/>.
+# along with "sc8prx". If not, see <http://www.gnu.org/licenses/>.
 
 "FFmpeg encoding and decoding using imageio/imageio-ffmpeg"
 
-import os, struct, pygame, numpy, imageio
+import os, numpy, imageio
 from json import dumps
 from zipfile import ZipFile, ZIP_DEFLATED
-from sc8pr import PixelData, Image
-from sc8pr.misc.video import VidZip
+from sc8pr import Image
+from sc8pr.misc.video import Video, _open_list
 from sc8prx import pil
 
 class _FF:
@@ -30,45 +30,48 @@ class _FF:
     def ffmpeg(ff): os.environ["IMAGEIO_FFMPEG_EXE"] = ff
 
     def __enter__(self): return self
-    def __exit__(self, *args): self._io.close()
-    close = __exit__
+    
+    def close(self, *args):
+        self._io.close()
+        if self in _open_list: _open_list.remove(self)
+
+    __exit__ = close
 
 
 class Reader(_FF):
     "Read images directly from a media file using imageio/FFmpeg"
 
+    read_alpha = None
+
     def __init__(self, src, **kwargs):
         self._io = imageio.get_reader(src, **kwargs)
+        _open_list.append(self)
         self._iter = iter(self._io)
         self._meta = self._io.get_meta_data()
         size = kwargs.get("size")
         if size is None: size = self._meta["size"]
-        self._info = struct.pack("!3I", 0, *size)
+        self._info = size, "RGB" #struct.pack("!3I", 0, *size)
 
     @property
     def meta(self): return self._meta
     
     def __next__(self):
-        "Return the next frame as an uncompressed PixelData instance"
-        return PixelData((bytes(next(self._iter)), self._info))
+        "Return the next frame as an Image instance"
+        return Image.fromBytes((bytes(next(self._iter)), self._info)).convert(self.read_alpha)
 
     def __iter__(self):
-        "Iterate through all frames returning data as uncompressed PixelData"
+        "Iterate through all frames returning data as Image instances"
         try:
             while True: yield next(self)
         except StopIteration: pass
 
-    def _read(self, n=None):
+    def read(self, n=None):
         try:
             while n is None or n > 0:
-                pix = next(self)
+                img = next(self)
                 if n is not None: n -= 1
-                yield pix
+                yield img
         except StopIteration: pass
-
-    def read(self, n=None, alpha=False):
-        "Return a list of Images from the next n frames"
-        return [img.rgba if alpha else img.img for img in self._read(n)]
 
     def skip(self, n):
         "Read and discard n frames"
@@ -90,27 +93,22 @@ class Reader(_FF):
         return n
 
     @staticmethod
-    def decode(mfile, zfile, size=None, start=0, frames=None, interval=1, replace=False, compression=ZIP_DEFLATED):
-        "Decode frames from a movie to a zip file containing PixelData binaries"
-        i = 0
-        prev = None
-        with ZipFile(zfile, "w" if replace else "x", compression) as zf:
-            kwargs = {"size": size} if size else {}
+    def decode(mfile, zfile, start=0, frames=None, interval=1, mode="x", alpha=None, compression=ZIP_DEFLATED, **kwargs):
+        "Decode frames from a movie to a zip file containing raw data"
+        with Video(zfile, mode=mode, compression=compression) as vid:
             with Reader(mfile, **kwargs) as ffr:
+                ffr.read_alpha = alpha 
                 meta = ffr.meta
                 if meta.get("fps") and interval > 1: meta["fps"] /= interval
                 if start: ffr.read(start)
+                i = 0
                 try:
                     while True:
-                        for j in range(interval-1): next(ffr._iter)
-                        data = bytes(next(ffr))
-                        if data != prev: zf.writestr(str(i), data)
-                        prev = data
+                        vid += next(ffr)
                         i += 1
                         if i == frames: break
-                except: pass
+                except Exception as exc: raise exc
                 meta["nframes"] = i
-                zf.writestr("meta.json", dumps(meta))
 
 
 class Writer(_FF):
@@ -119,60 +117,47 @@ class Writer(_FF):
     def __init__(self, fn, fps=30, size=None, **kwargs):
         self._size = size
         self._io = imageio.get_writer(fn, fps=fps, **kwargs)
+        _open_list.append(self)
 
-    def write(self, srf):
+    def write(self, img):
         "Write one frame (surface) to the video file, resizing if necessary"
-        if type(srf) is not pygame.Surface:
-            try: srf = srf.image
-            except: srf = Image(srf).image
-        size = srf.get_size()
-        if self._size is None: self._size = size
-        if size != self._size:
-            srf = Image(srf).config(size=self._size).image
-        self._io.append_data(numpy.array(pil(PixelData(srf))))
+        if not isinstance(img, Image): img = Image(img)
+        if self._size is None: self._size = img.size
+        elif img.size != self._size: img.config(size=self._size)
+        self._io.append_data(numpy.array(pil(img.convert(False))))
         return self
 
-    def writePixelData(self, pix):
-        "Write a PixelData instance: DOES NOT VERIFY SIZE"
-        self._io.append_data(numpy.array(pil(pix)))
-        return self
+    __iadd__ = write
 
-    def writePIL(self, pil):
-        "Write a PIL image: DOES NOT VERIFY SIZE"
-        self._io.append_data(numpy.array(pil))
-        return self
-
-    @staticmethod
-    def _srf_rgb(pix):
-        return pix.srf.convert(24) if pix.mode == "RGBA" else pix.srf
-
-    def concat_zip(self, src, start=0, frames=None):
-        "Concatenate ZIP archive frames to the movie"
-        with VidZip(src) as src:
-            clip = src[start:start+frames] if frames else src[start:]
-            for f in clip: self.write(self._srf_rgb(f))
+    def writePIL(self, img):
+        "Write a PIL image to the video file, resizing if necessary"
+        if self._size is None: self._size = img.size
+        elif img.size != self._size: img = img.resize(self._size)
+        self._io.append_data(numpy.array(img))
         return self
 
     def concat(self, src, start=0, frames=None):
         "Concatenate frames from a movie file"
-        with Reader(src).skip(start) as src:
+        with Reader(src, size=self._size).skip(start) as src:
             try:
                 while frames is None or frames:
-                    self.write(self._srf_rgb(next(src)))
+                    self.write(next(src))
                     if frames: frames -= 1
             except StopIteration: pass
         return self
 
-    capture = write
+    def concat_zip(self, src, start=0, frames=None):
+        "Concatenate ZIP archive frames to the movie"
+        with Video(src) as src:
+            clip = src[start:start+frames] if frames else src[start:]
+            for f in clip: self.write(f)
+        return self
 
     @staticmethod
-    def encode(zfile, mfile, fps=None, size=None, start=0, frames=None, **kwargs):
+    def encode(zfile, mfile, fps=None, start=0, frames=None, **kwargs):
         "Encode frames from a ZIP archive using FFmpeg"
-        with VidZip(zfile) as self:
-            if fps is None: fps = self._meta.get("fps", 30)
+        with Video(zfile) as vid:
+            if fps is None: fps = vid._meta.get("fps", 30)
             with Writer(mfile, fps, **kwargs) as ffw:
-                seq = self[start:start + frames] if frames else self[start:] if start else self
-                for pix in seq:
-                    if size and pix.size != size:
-                        ffw.write(pix.img.config(size=size).image)
-                    else: ffw.writePixelData(pix)
+                seq = vid[start:start + frames] if frames else vid[start:] if start else vid
+                for img in seq: ffw.write(img)
