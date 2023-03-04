@@ -9,16 +9,18 @@
 #
 # "sc8prx" is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with "sc8prx".  If not, see <http://www.gnu.org/licenses/>.
+# along with "sc8prx". If not, see <http://www.gnu.org/licenses/>.
 
-from sc8pr.misc.video import Video, BaseSprite, Sprite
+
+from sc8pr.sprite import BaseSprite, CostumeImage, Sprite
 from sc8prx.ffmpeg import Reader
 
-class Movie(Video):
+
+class Movie(CostumeImage):
 
     @property
     def cycle(self): return False
@@ -32,14 +34,16 @@ class Movie(Video):
         self.restart()
 
     def restart(self, ev=None):
-        try: self._vid.close()
+        try: self._ffr.close()
         except: pass
-        self._vid = self._reader().skip(self._skip)
-        self._read = (lambda r: next(r).rgba) if self._alpha else (lambda r: next(r).img)
+        self._ffr = self._reader().skip(self._skip)
+        self._read = (lambda r: next(r).rgba) if self._alpha else (lambda r: next(r))
         self._costumeNumber = 0
-        self._costume = self._read(self._vid)
+        self._costume = self._read(self._ffr)
         if self._size is None: self._size = self._costume.size
         return self
+
+    def costume(self): return self._costume.config(size=self._size, angle=self.angle)
 
     @property
     def costumeNumber(self): return self._costumeNumber
@@ -51,18 +55,18 @@ class Movie(Video):
             raise ValueError("movie frames must be read in order")
         try:
             if n == self._frames: raise StopIteration()
-            self._costume = self._read(self._vid)
+            self._costume = self._read(self._ffr)
         except StopIteration:
             self._costumeNumber -= 1
             if self._frames is None or n < self._frames:
                 self._frames = n
 
-    def close(self): self._vid.close()
+    def close(self): self._ffr.close()
 
     @property
     def clip(self):
         s = self._skip
-        n = self._vid._meta.get("nframes")
+        n = self._ffr._meta.get("nframes")
         if n == float("inf"): n = None
         f = self._frames
         if f is None: f = n
