@@ -21,15 +21,15 @@ import pygame, PIL.ImageGrab
 from sc8pr import Image
 from sc8pr.util import hasAlpha, surface
 
-def surface_to_pil(srf, mode=None):
+def pil_image(srf, mode=None):
     "Convert surface to PIL.Image"
     srf = surface(srf)
     if mode is None: mode = "RGBA" if hasAlpha(srf) else "RGB"
     return PIL.Image.frombytes(mode, srf.get_size(), pygame.image.tostring(srf, mode))
 
-def pil_to_surface(pil_img):
-    "Convert PIL.Image to surface"
-    return pygame.image.fromstring(pil_img.tobytes(), pil_img.size, pil_img.mode)
+# def pil_to_surface(pil_img):
+#     "Convert PIL.Image to surface"
+#     return pygame.image.fromstring(pil_img.tobytes(), pil_img.size, pil_img.mode)
 
 
 class Grabber:

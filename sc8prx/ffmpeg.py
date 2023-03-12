@@ -21,7 +21,7 @@ import os, numpy, imageio
 from json import dumps
 from zipfile import ZipFile, ZIP_DEFLATED
 from sc8pr import Image, BaseSprite
-from sc8pr.util import hasAlpha
+from sc8pr.util import surface
 from sc8pr.sprite import CostumeImage, Sprite
 from sc8pr.misc.video import Video, _open_list
 from pygame.surfarray import pixels3d
@@ -62,9 +62,7 @@ class Reader(_FF):
     def __next__(self):
         "Return the next frame as an Image instance"
         srf = make_surface(numpy.swapaxes(next(self._iter), 0, 1))
-        if self.read_alpha and not hasAlpha(srf): srf = srf.convert_alpha()
-        elif self.read_alpha is False and srf.get_bitsize() != 24: srf = srf.convert(24)
-        return Image(srf)
+        return Image(surface(srf, self.read_alpha))
 
     def __iter__(self):
         "Iterate through all frames returning data as Image instances"
