@@ -175,6 +175,9 @@ class Movie(CostumeImage):
     @property
     def cycle(self): return False
 
+    @property
+    def meta(self): return self._ffr.meta
+
     def __init__(self, src, skip=0, frames=None, alpha=False, **kwargs):
         self._alpha = alpha
         self._skip = skip
