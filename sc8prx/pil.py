@@ -27,10 +27,6 @@ def pil_image(srf, mode=None):
     if mode is None: mode = "RGBA" if hasAlpha(srf) else "RGB"
     return PIL.Image.frombytes(mode, srf.get_size(), pygame.image.tostring(srf, mode))
 
-# def pil_to_surface(pil_img):
-#     "Convert PIL.Image to surface"
-#     return pygame.image.fromstring(pil_img.tobytes(), pil_img.size, pil_img.mode)
-
 
 class Grabber:
     "A class for performing screen captures using PIL.ImageGrab.grab"
@@ -52,10 +48,10 @@ class Grabber:
     def pil(self): return self.grab(self.bbox)
 
     @property
-    def img(self): return Image(pil_to_surface(self.grab(self.bbox)))
+    def img(self): return Image(self.srf)
 
     @property
     def rgba(self): return self.img.rgba
 
     @property
-    def srf(self): return pil_to_surface(self.grab(self.bbox))
+    def srf(self): return surface(self.grab(self.bbox))
